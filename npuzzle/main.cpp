@@ -6,11 +6,11 @@
 /*   By: pacovali <pacovali@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2020/08/01 08:57:29 by pacovali      #+#    #+#                 */
-/*   Updated: 2020/08/06 18:32:20 by pacovali      ########   odam.nl         */
+/*   Updated: 2020/08/01 08:57:30 by pacovali      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "libs.hpp"
+#include "header.h"
 # include "Npuzzle.class.hpp"
 
 using namespace std;

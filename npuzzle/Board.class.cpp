@@ -6,7 +6,7 @@
 /*   By: pacovali <pacovali@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2020/08/01 09:21:41 by pacovali      #+#    #+#                 */
-/*   Updated: 2020/08/06 18:32:01 by pacovali      ########   odam.nl         */
+/*   Updated: 2020/08/01 09:21:51 by pacovali      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,26 +23,32 @@ using namespace std;
 Board::Board ( void ) {
 	size_ = 0;
 	cost_ = 0;
-	distance_ = 0;
+	weight_ = 0;
 	parent_ = nullptr;
+	zeroAddr_ = {0, 0};
+	hash_ = 0;
 }
 
-Board::Board( const size_t& size ) : size_( size ) {
+Board::Board( const unsigned char& size ) {
+	size_ = size;
 	cost_ = 0;
-	distance_ = 0;
+	weight_ = 0;
 	parent_ = nullptr;
-	if (size < 3)
-		throw logic_error( "Board side must be in range [3-16]" );
+	zeroAddr_ = {0, 0};
+	hash_ = 0;
+	vals_.resize(size * size);
+	if (size < 3 || size > 16)
+		throw logic_error( "Board side must be in range (3-16)" );
 }
 
 Board::Board( const Board& rhs ) {
 	size_ = rhs.size_;
-	pvals_ = rhs.pvals_;
-	vvals_ = rhs.vvals_;
-	cost_ = rhs.cost_;
-	distance_ = rhs.distance_;
+	vals_ = rhs.vals_;
+	cost_ = rhs.cost_ + 1;
+	weight_ = rhs.weight_;
 	children_ = rhs.children_;
-	parent_ = nullptr;
+	parent_ = (Board*)&rhs;
+	zeroAddr_ = rhs.zeroAddr_;
 }
 
 /*
@@ -53,24 +59,23 @@ Board::Board( const Board& rhs ) {
 
 void	Board::operator=( const Board& rhs ) {
 	size_ = rhs.size_;
-	pvals_ = rhs.pvals_;
-	vvals_ = rhs.vvals_;
-	cost_ = rhs.cost_;
-	distance_ = rhs.distance_;
-	children_ = rhs.children_;
+	vals_ = rhs.vals_;
+	weight_ = rhs.weight_;
 	parent_ = rhs.parent_;
+	children_ = rhs.children_;
+	zeroAddr_ = rhs.zeroAddr_;
 }
 
 bool	Board::operator==( const Board& rhs ) const {
-	return ( equal(pvals_.begin(), pvals_.end(), rhs.pvals_.begin()) );
+	return ( hash_ == rhs.hash_ );
 }
 
 bool	Board::operator!=( const Board& rhs ) const {
-	return ( !equal(pvals_.begin(), pvals_.end(), rhs.pvals_.begin()) );
+	return ( hash_ != rhs.hash_ );
 }
 
 bool	Board::operator<( const Board& rhs ) const {
-	return ( cost_ < rhs.cost_ && distance_ < rhs.distance_  );
+	return ( weight_ < rhs.weight_ );
 }
 
 /*
@@ -89,141 +94,122 @@ static void	swap_values( int& first, int& second, int& iter ) {
 	iter = -iter;
 }
 
-bool	Board::generateCorrect( void ) {
+void	Board::generateCorrect( void ) {
 	int	x_upper = (int)size_, y_upper = (int)size_;
 	int	x_lower = -1, y_lower = -1;
 	int	x_iter = 1, y_iter = 1;
 	int	counter = 0;
 
 	while (counter < (int)size_ * (int)size_) {
-		for ( int i = x_lower + x_iter; i != x_upper; i += x_iter ) {
-			vvals_[(counter + 1) % (size_ * size_)] = { y_lower + y_iter, i };
-			pvals_[{ y_lower + y_iter, i }] = (counter + 1) % (size_ * size_);
+		for ( int column = x_lower + x_iter; column != x_upper; column += x_iter ) {
+			int		row = (y_lower + y_iter);
+			vals_[row * size_ + column ] = (counter + 1) % (size_ * size_);
 			counter++;
 		}
 		swap_values( x_lower, x_upper, x_iter );
 		y_lower += y_iter;
-		for ( int i = y_lower + y_iter; i != y_upper; i += y_iter ) {
-			vvals_[(counter + 1) % (size_ * size_)] = { i, x_lower + x_iter };
-			pvals_[{ i, x_lower + x_iter }] = (counter + 1) % (size_ * size_);
+		for ( int row = (y_lower + y_iter); row != y_upper; row += y_iter ) {
+			int column = x_lower + x_iter;
+			vals_[row * size_ + column] = (counter + 1) % (size_ * size_);
 			counter++;
 		}
 		x_lower += x_iter;
 		swap_values( y_lower, y_upper, y_iter );
 	}
-	return ( true );
+	auto zero = find(vals_.begin(), vals_.end(), 0);
+	unsigned char distance = zero - vals_.begin();
+	zeroAddr_ = { (char)(distance % size_), (char)(distance / size_) };
+	setHash();
 }
 
-bool		Board::generateRandom( void ) {
-	vector<int>		vals(size_ * size_);
+void		Board::generateRandom( void ) {
+	vals_ = vector<unsigned char>(size_ * size_);
 	
 	for (size_t i = 0; i < size_ * size_; i++) {
-		vals[i] = (int)i;
+		vals_[i] = (int)i;
 	}
-	shuffle(vals.begin(), vals.end(), std::default_random_engine(1));
-	for (size_t i = 0; i < size_ * size_; i++) {
-		vvals_[vals[i]] = { i / size_, i % size_ };
-		pvals_[{ i / size_, i % size_ }] = vals[i];
-	}
-	return ( true );
+	shuffle(vals_.begin(), vals_.end(), std::default_random_engine((int)time(nullptr)));
+	auto zero = find(vals_.begin(), vals_.end(), 0);
+	unsigned char distance = zero - vals_.begin();
+	zeroAddr_ = { (char)(distance % size_), (char)(distance / size_) };
+	setHash();
 }
 
-bool		Board::isUnique( void ) {
-	Board *tmp = parent_;
-	while ( tmp ) {
-		if ( tmp->vvals_ == vvals_ )
-			return ( false );
-		tmp = tmp->parent_;
-	}
-	return ( true );
+vector<unsigned char> *Board::getMap( void ) {
+	return ( &vals_ );
 }
 
-size_t		Board::getSize( void ) const {
+const vector<unsigned char>	*Board::getMap( void ) const {
+	return ( &vals_ );
+}
+
+unsigned char		Board::getSize( void ) const {
 	return ( size_ );
 }
 
-std::map<short, std::pair<short, short>>&	Board::getAddressByValue( void ) {
-	return ( vvals_ );
-}
-
-const std::map<short, std::pair<short, short>>&	Board::getAddressByValue( void ) const {
-	return ( vvals_ );
-}
-
-std::map<std::pair<short, short>, short>&	Board::getValueByAddress( void ) {
-	return ( pvals_ );
-}
-
-const std::map<std::pair<short, short>, short>&	Board::getValueByAddress( void ) const {
-	return ( pvals_ );
-}
-
-int			Board::getCost( void ) const {
-	return ( cost_ );
-}
-
-float		Board::getDistance( void ) const {
-	return ( distance_ );
+float		Board::getWeight( void ) const {
+	return ( weight_ );
 }
 
 const Board	*Board::getParent( void ) const {
 	return ( parent_ );
 }
 
-std::vector<Board>&	Board::getChildren( void ) {
-	return ( children_ );
+
+std::vector<Board>	*Board::getChildren( void ) {
+	return ( &children_ );
 }
 
-std::pair<int, int>	Board::getNodeAddress(short& val) const {
-	return ( vvals_.at(val) );
-}
-
-short		Board::getNodeValue(const std::pair<int, int>& address) const {
-	return ( pvals_.at(address) );
-}
-
-void		Board::setChildren( const int& metric, const Board& solution, Board* parent ) {
-	pair<short, short>	zeroAddress = vvals_.at(0);
-	if (zeroAddress.first > 0) {
-		Board tmp(*this);
-		tmp.swap_({zeroAddress.first - 1, zeroAddress.second}, zeroAddress, metric, solution);
-		if (tmp.isUnique()) {
-			children_.push_back(tmp);
-		}
+void		Board::setChildren( const int& metric, const int& searchType, const Board& solution ) {
+	if ( zeroAddr_.x > 0 ) {
+		children_.push_back(*this);
+		children_[children_.size() - 1].swapNodes_({(char)(zeroAddr_.x - 1), zeroAddr_.y}, metric, searchType, solution);
 	}
-	if (zeroAddress.first < int(size_ - 1)) {
-		Board tmp(*this);
-		tmp.swap_({zeroAddress.first + 1, zeroAddress.second}, zeroAddress, metric, solution);
-		if (tmp.isUnique()) {
-			children_.push_back(tmp);
-		}
+	if ( zeroAddr_.x < (size_ - 1) ) {
+		children_.push_back(*this);
+		children_[children_.size() - 1].swapNodes_({(char)(zeroAddr_.x + 1), zeroAddr_.y}, metric, searchType, solution);
 	}
-	if (zeroAddress.second > 0) {
-		Board tmp(*this);
-		tmp.swap_({zeroAddress.first, zeroAddress.second - 1}, zeroAddress, metric, solution);
-		if (tmp.isUnique()) {
-			children_.push_back(tmp);
-		}
+	if ( zeroAddr_.y > 0 ) {
+		children_.push_back(*this);
+		children_[children_.size() - 1].swapNodes_({zeroAddr_.x, (char)(zeroAddr_.y - 1)}, metric, searchType, solution);
 	}
-	if (zeroAddress.second < int(size_ - 1)) {
-		Board tmp(*this);
-		tmp.swap_({zeroAddress.first, zeroAddress.second + 1}, zeroAddress, metric, solution);
-		if (tmp.isUnique()) {
-			children_.push_back(tmp);
-		}
-	}
-	for (auto& i : children_) {
-		i.parent_ = parent;
-		i.cost_++;
+	if ( zeroAddr_.y < (size_ - 1) ) {
+		children_.push_back(*this);
+		children_[children_.size() - 1].swapNodes_({zeroAddr_.x, (char)(zeroAddr_.y + 1)}, metric, searchType, solution);
 	}
 }
 
-void		Board::setDistance( const int& metric, const Board& solution ) {
-	for (size_t row = 0; row < size_; row++) {
-		for (size_t index = 0; index < size_; index++) {
-			distance_ += solveMetrics_( *this, solution, metric, {row, index} );
+void	Board::setHash( void ) {
+	char			resultOffset = 0;
+	char			currentOffset = ( size_ == 3 ? 8 : 4 );				// for boards 3*3 don't compress data as it fits 64bits
+	
+	for ( uint64_t current : vals_ ) {
+		while ( current ) {
+			hash_ ^= ( (current) << (resultOffset & 63) );
+			current >>= currentOffset;
+			resultOffset += currentOffset;
 		}
 	}
+}
+
+void	Board::setWeight( const int& metric, const int& searchType, const Board& solution ) {
+	if ( searchType == GREEDY || searchType == STANDARD ) {
+		for ( char i = 0; i < size_ * size_; i++ ) {
+			address currentAddress( {char(i % size_), char(i / size_)} );
+			updateHeurstic_(currentAddress, metric, solution);
+		}
+	} else {
+		heur_ = 0;
+	}
+	updateWeight_( searchType );
+}
+
+uint64_t	Board::getHash( void ) const {
+	return ( hash_ );
+}
+
+int			Board::getCost(void ) const {
+	return ( cost_ );
 }
 
 /*
@@ -232,49 +218,42 @@ void		Board::setDistance( const int& metric, const Board& solution ) {
 ** *****************************************************************************
 */
 
-float		solveManhattan(const pair<short, short>& curAddress, const pair<short, short>& solAddress) {
-	return (abs(curAddress.first - solAddress.first) +
-			abs(curAddress.second - solAddress.second));
-}
+float	Board::updateHeurstic_( const address& node, const int& metric, const Board& solution ) {
+	float	res = 0;
+	auto	value = vals_[node.x + node.y * size_];
 
-float		solveEuclidean(const pair<short, short>& curAddress, const pair<short, short>& solAddress) {
-	return (sqrt((curAddress.first - solAddress.first) *
-			(curAddress.first - solAddress.first) +
-			(curAddress.second - solAddress.second) *
-			(curAddress.second - solAddress.second)));
-}
-
-float		solveHamming(short current, short solved) {
-	return (current != solved);
-}
-
-float		Board::solveMetrics_(Board& current, const Board&  solution, int metric, const pair<short, short>& curAddress) {
-	short curValue = current.getValueByAddress().at(curAddress);
-	pair<short, short> solAddress = solution.getAddressByValue().at(curValue);
-
-	if (metric == MANHATTAN) {
-		return ( solveManhattan(curAddress, solAddress) );
+	if ( metric == MANHATTAN ) {
+		res = find(solution.vals_.begin(), solution.vals_.end(), value) - solution.vals_.begin();
+	} else if ( metric == EUCLIDEAN ) {
+		int x = (int)( find(solution.vals_.begin(), solution.vals_.end(), value) - solution.vals_.begin() ) % size_;
+		int y = (int)( find(solution.vals_.begin(), solution.vals_.end(), value) - solution.vals_.begin() ) / size_;
+		res = sqrt( x * x + y * y );
+	} else {
+		res = vals_[node.x  + node.y * size_] == solution.vals_[node.x  + node.y * size_];
 	}
-	if (metric == EUCLIDEAN) {
-		return ( solveEuclidean(curAddress, solAddress) );
-	}
-	if (metric == HAMMING) {
-		return ( solveHamming(curValue, solution.getValueByAddress().at(curAddress)) );
-	}
-	throw runtime_error("Unknown metric id at solveMetrics_");
-	return (0);
+	return (res);
 }
 
-void	Board::swap_(const std::pair<short, short>& valueAddress,
-					 const std::pair<short, short>& zeroAddress,
-					 int metric, const Board&  solution) {
-	distance_ -= solveMetrics_(*this, solution, metric, valueAddress);
-	short value = pvals_.at(valueAddress);
-	pvals_[valueAddress] = 0;
-	pvals_[zeroAddress] = value;
-	vvals_[0] = valueAddress;
-	vvals_[value] = zeroAddress;
-	distance_ += solveMetrics_(*this, solution, metric, zeroAddress);
+void	Board::updateWeight_( const int& searchType ) {
+	if ( searchType == COST_UNIFORM ) {
+		weight_ = cost_;
+	} else if ( searchType == GREEDY ) {
+		weight_ = heur_;
+	} else {
+		weight_ = heur_ + cost_;
+	}
+}
+
+void	Board::swapNodes_( const address& newZero, const int& metric, const int& searchType, const Board& solution ) {
+	address curZero = zeroAddr_;
+	cost_ -= updateHeurstic_( newZero, metric, solution );
+	cost_ -= updateHeurstic_( curZero, metric, solution );
+	vals_[zeroAddr_.x + zeroAddr_.y * size_] = vals_[newZero.x + newZero.y * size_];
+	vals_[newZero.x + newZero.y * size_] = 0;
+	cost_ += updateHeurstic_( newZero, metric, solution );
+	cost_ += updateHeurstic_( curZero, metric, solution );
+	setHash();
+	updateWeight_( searchType );
 }
 
 /*
@@ -284,41 +263,43 @@ void	Board::swap_(const std::pair<short, short>& valueAddress,
 */
 
 std::ostream& operator<<( std::ostream& stream, const Board& board ) {
-	const map<pair<short,short>, short>& out = board.getValueByAddress();
-	for (size_t i = 0; i < board.getSize(); i++) {
-		for (size_t j = 0; j < board.getSize(); j++) {
-			stream << setw(4) << out.at({ i, j }) << (j == board.getSize() - 1 ? "\n" : " ");
-		}
+	vector<unsigned char> *out = (vector<unsigned char>*)board.getMap();
+	for (unsigned char i = 0; i < board.getSize() * board.getSize(); i++) {
+		stream << setw(4) << int(out[0][i]) << ((i + 1) % board.getSize() ? " " : "\n");
 	}
 	return ( stream );
 }
 
 std::istream& operator>>( std::istream& stream, Board& board ) {
-	map<pair<short,short>, short>& pvals = board.getValueByAddress();
-	map<short, pair<short,short>>& vvals = board.getAddressByValue();
-
+	vector<unsigned char> *in = (vector<unsigned char>*)board.getMap();
+	set<unsigned char> check;
 	
-	for (size_t row = 0; row < board.getSize(); row++) {
-		for (size_t index = 0; index < board.getSize(); index++) {
-			short		tmp;
-			stream >> tmp;
-			if ( !stream || stream.fail() ) {
-				if ( index != 0 ) {
-					throw std::runtime_error( "Non-digit found" );
-				} else {
-					stream.clear();
-					while ( stream.peek() == '#' ) {
-						stream.ignore( std::numeric_limits<std::streamsize>::max(), '\n' );
-					}
-					stream >> tmp;
+	for (unsigned char i = 0; i < board.getSize() * board.getSize(); i++) {
+		short		tmp;
+		stream >> tmp;
+		if ( !stream || stream.fail() ) {
+			if ( (i + 1) % board.getSize() || stream.peek() != '#' ) {						// if non-digit in the middle of line
+				throw std::runtime_error( "Non-digit found" );
+			} else {
+				stream.clear();
+				while ( stream.peek() == '#' ) {
+					stream.ignore( std::numeric_limits<std::streamsize>::max(), '\n' );
 				}
+				stream >> tmp;
 			}
-			if (vvals.count(tmp)) {
-				throw runtime_error("Duplicate node found on board");
-			}
-			vvals.insert( {tmp, {row, index}} );
-			pvals.insert( {{row, index}, tmp} );
 		}
+		if (check.count(tmp)) {
+			throw runtime_error("Duplicate node found on board");
+		} else {
+			check.insert(tmp);
+		}
+		if ( tmp < 0 ) {
+			throw out_of_range("Negative node found");
+		}
+		if ( tmp > (board.getSize() * board.getSize() - 1) ) {
+			throw out_of_range("Node value too big");
+		}
+		in[0][i] = tmp;
 	}
 	return ( stream );
 }

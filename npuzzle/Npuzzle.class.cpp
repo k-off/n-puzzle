@@ -6,7 +6,7 @@
 /*   By: pacovali <pacovali@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2020/08/01 08:57:37 by pacovali      #+#    #+#                 */
-/*   Updated: 2020/08/06 18:32:27 by pacovali      ########   odam.nl         */
+/*   Updated: 2020/08/01 08:57:50 by pacovali      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,47 +14,49 @@
 
 using namespace std;
 
-static int getUnsigned( istream& is ) {
-	int		size {};
+static uint64_t getUnsigned( istream& is ) {
+	int64_t	value;
 
 	try {
-		is >> size;
+		is >> value;
 		if ( !is || is.fail() )
 			throw runtime_error( "Non-digit character detected" );
-		if ( size < 0 )
+		if ( value < 0 )
 			throw range_error( "Negative number detected" );
 	}
 	catch ( const exception& e ) {
 		cerr << endl << "Error: " << e.what() << endl;
 		exit ( 1 );
 	}
-	return ( size );
+	return ( value );
 }
 
 Npuzzle::Npuzzle( void )
 {
-	int		size;
+	uint64_t	size = 0;
 
 	cout << "No board file was provided. Entering random mode." << endl;
-	cout << endl << "Enter length of board's side: ";
-	size = getUnsigned( cin );
+	while ( size < 3 || size > 16 ) {
+		cout << endl << "Enter length of board's side (3<=x<=16): ";
+		size = int( getUnsigned(cin) );
+	}
 	solution_ = Board( size );
 	solution_.generateCorrect();
+	solution_.setHash();
 	cout << "Generating random board of size " << size << endl;
 	initial_ = Board( size );
 	initial_.generateRandom();
 	cout << "Initial board:\n" << initial_;
-	maxStates_ = 0;
-	shortestPath_ = 0;
+	maxOpen_ = 0;
+	maxCost_ = 0;
 	setMetricId();
-	initial_.setDistance(metricId_, solution_);
+	setSearchType();
+	initial_.setHash();
+	initial_.setWeight(metricId_, searchType_, solution_);
 }
 
-Npuzzle::Npuzzle( std::istream& infile )
-: maxStates_(0)
-, shortestPath_(0)
-{
-	int		size;
+Npuzzle::Npuzzle( std::istream& infile ) {
+	uint64_t	size;
 	
 	cout << "Length of board's side: ";
 	while (infile.peek() == '#') {
@@ -65,67 +67,87 @@ Npuzzle::Npuzzle( std::istream& infile )
 	cout << size << endl;
 	solution_ = Board( size );
 	solution_.generateCorrect();
+	solution_.setHash();
 	initial_ = Board( size );
 	infile >> initial_;
 	cout << initial_;
-	maxStates_ = 0;
-	shortestPath_ = 0;
+	maxOpen_ = 0;
+	maxCost_ = 0;
 	setMetricId();
-	initial_.setDistance(metricId_, solution_);
+	setSearchType();
+	initial_.setHash();
+	initial_.setWeight(metricId_, searchType_, solution_);
 }
 
 void	Npuzzle::setMetricId( void ) {
 	vector<string> names = { "Manhattan", "Euclidean", "Hamming" };
-	cout << "Available metrics:" << endl;
+	cout << "\nAvailable metrics:" << endl;
 	cout << "\t0 - Manhattan (manhattan, or cab distance: dx + dy)" << endl;
 	cout << "\t1 - Euclidean (euclidean distance: sqrt(dx^2 + dy^2)" << endl;
 	cout << "\t2 - Hamming (number of misplaced nodes)" << endl;
 	metricId_ = -1;
 	while ( metricId_ < 0 || metricId_ > 2 ) {
-		cout << "Type metric id (0 or 1 or 2): ";
-		metricId_ = getUnsigned( cin );
+		cout << "\nType metric id (0 or 1 or 2): ";
+		metricId_ = int( getUnsigned(cin) );
 	}
 	cout << names[metricId_] << " metric selected" << endl;
 }
 
+void	Npuzzle::setSearchType( void ) {
+	vector<string> names = { "Standard", "Greedy", "Cost-uniform" };
+	cout << "\nAvailble search types:" << endl;
+	cout << "\t0 - Standard     : f(g)+f(h)" << endl;
+	cout << "\t1 - Greedy       : f(g)" << endl;
+	cout << "\t2 - Cost-uniform : f(h)" << endl;
+	searchType_ = -1;
+	while ( searchType_ < 0 || searchType_ > 2 ) {
+		cout << "\nType search id (0 or 1 or 2): ";
+		searchType_ = int( getUnsigned(cin) );
+	}
+	cout << names[metricId_] << " search type selected" << endl;
+}
+
 bool	Npuzzle::solve( void ) {
-	open_.insert( {initial_.getDistance() + initial_.getCost(), &initial_} );
-	while ( open_.size() > 0 ) {
-		Board *current = open_.begin()->second;
-		if (*current != solution_) {
-			if ( maxStates_ < int(open_.size()) ) {
-				maxStates_ = int(open_.size());
+	openStates_.insert( {initial_.getWeight(), &initial_} );
+	allHashes_.insert( initial_.getHash() );
+	while ( openStates_.size() > 0 ) {
+		Board *current = openStates_.begin()->second;
+		if ( current->getHash() == solution_.getHash() ) {
+			return ( print(current) );
+		} else {
+			current->setChildren(metricId_, searchType_, solution_);
+			vector<Board> *newChildren = current->getChildren();
+			if ( newChildren[0][0].getCost() > maxCost_ ) {
+				maxCost_ = newChildren[0][0].getCost();
 			}
-			current->setChildren(metricId_, solution_, current);
-			states_.insert(current->getValueByAddress());
-			open_.erase( {current->getDistance() + current->getCost(), current} );
-			vector<Board>& children = current->getChildren();
-			for (size_t i = 0; i < children.size(); i++) {
-				if ( !states_.count(children[i].getValueByAddress()) ) {
-					open_.insert( {children[i].getDistance() + children[i].getCost(), &children[i]});
+			for ( auto newChild : *newChildren ) {
+				if ( allHashes_.count(newChild.getHash()) == 0 ) {
+					allHashes_.insert(newChild.getHash());
+					openStates_.insert( {newChild.getWeight(), &newChild} );
 				}
 			}
-		} else {
-			return ( print(current) );
+			openStates_.erase(openStates_.begin());
+			if ( (int)openStates_.size() > maxOpen_ ) {
+				maxOpen_ = (int)openStates_.size();
+			}
 		}
 	}
 	return ( false );
 }
 
-int 		recursiveSteps( const Board* solution ) {
-	int res = 0;
-
+void 	recursivePrintSteps( const Board* solution, int& res ) {
 	if ( solution->getParent() ) {
-		res = recursiveSteps( solution->getParent() ) + 1;
+		res++;
+		recursivePrintSteps( solution->getParent(), res );
 	}
 	cout << *solution << endl;
-	return ( res );
 }
 
 bool	Npuzzle::print( Board* solution ) const {
-	int steps = recursiveSteps( solution );
+	int steps = 0;
+	recursivePrintSteps( solution, steps );
 	cout << "Solution steps  : " << steps << endl;
-	cout << "Time complexity : " << states_.size() << endl;
-	cout << "Space complexity: " << maxStates_ << endl;
+	cout << "Time complexity : " << maxCost_ << endl;
+	cout << "Space complexity: " << maxOpen_ << endl;
 	return ( true );
 }

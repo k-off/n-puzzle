@@ -6,57 +6,61 @@
 /*   By: pacovali <pacovali@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2020/08/01 09:22:02 by pacovali      #+#    #+#                 */
-/*   Updated: 2020/08/06 18:32:06 by pacovali      ########   odam.nl         */
+/*   Updated: 2020/08/01 09:22:36 by pacovali      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
 #ifndef __BOARD_CLASS_HPP
 # define __BOARD_CLASS_HPP
 
-# include "libs.hpp"
+# include "header.h"
+
+struct	address {
+	char	x;
+	char	y;
+};
 
 class Board {
 private:
-	size_t											size_;		// length of one side of the board
-	std::map<std::pair<short, short>, short>		pvals_;		// 2D map address to value
-	std::map<short, std::pair<short, short>>		vvals_;		// 2D map value to address
-	int												cost_;		// how many steps taken so far
-	float											distance_;	// sum of measures (how far from solution)
-	std::vector<Board>								children_;	// next states
-	Board											*parent_;	// pointer to previous state
+	unsigned char				size_;						// length of one side of the board
+	std::vector<unsigned char>	vals_;						// the actual map
+	int							heur_;
+	int							cost_;
+	float						weight_;					// result of heuristic funciton, depends on the selected metric and search type
+	std::vector<Board>			children_;					// next states
+	Board						*parent_;					// pointer to previous state
+	address						zeroAddr_;					// coordinates of zero node
+	uint64_t					hash_;						// hash sum of the table
 
-	float	solveMetrics_(Board& current, const Board& solution, int metric,
-						  const std::pair<short, short>& cur_address);
-	void	updateDistance_( int& heuristic );									// distance update while running search
-	void	swap_(const std::pair<short, short>& valueAddress,
-				  const std::pair<short, short>& zeroAddress,
-				  int metric, const Board&  solution);
+	float						updateHeurstic_( const address& node, const int& metric, const Board& solution );						// update heuristic value according to the selected metric
+	void						updateWeight_( const int& searchType );																	// update weight according to the selected metric and search type
+	void						swapNodes_( const address& newZero, const int& metric, const int& searchType, const Board& solution );	// swap a node with the zero-node
+
 public:
 	Board( void );
-	Board( const size_t& size );
+	Board( const unsigned char& size );
 	Board( const Board& rhs );
 
 	void	operator=( const Board& rhs );
-	bool	operator==( const Board& rhs ) const;		// return true if 2D arrays are identical
-	bool	operator!=( const Board& rhs ) const;		// return true if 2D arrays are not identical
-	bool	operator<( const Board& rhs ) const;		// return true if
+	bool	operator==( const Board& rhs ) const;			// return true if 2D arrays are identical
+	bool	operator!=( const Board& rhs ) const;			// return true if 2D arrays are not identical
+	bool	operator<( const Board& rhs ) const;			// return true if
 
-	bool											generateCorrect( void );	// generate solution board
-	bool											generateRandom( void );		// generate random initial board
-	bool											isUnique( void );			// compare with parents
-	size_t											getSize( void ) const;		// get length of side
-	std::map<short, std::pair<short, short>>&		getAddressByValue( void );
-	const std::map<short, std::pair<short, short>>&	getAddressByValue( void ) const;
-	std::map<std::pair<short, short>, short>&		getValueByAddress( void );
-	const std::map<std::pair<short, short>, short>&	getValueByAddress( void ) const;
-	int												getCost( void ) const;
-	float											getDistance( void ) const;
-	const Board										*getParent( void ) const;
-	std::vector<Board>&								getChildren( void );
-	std::pair<int, int>								getNodeAddress(short& val) const;							// find node and return it's 2D address
-	short											getNodeValue(const std::pair<int, int>& address) const;		// get value
-	void											setChildren( const int& metric, const Board& solution, Board* parent );
-	void											setDistance( const int& metric, const Board& solution );	// initial distance setup
+	void						generateCorrect( void );	// generate solution board
+	void						generateRandom( void );		// generate random initial board
+
+	unsigned char				getSize( void ) const;		// get length of side
+	float						getWeight( void ) const;
+	uint64_t					getHash( void ) const;
+	int							getCost(void ) const;
+	const Board					*getParent( void ) const;
+	std::vector<Board>			*getChildren( void );
+	std::vector<unsigned char>	*getMap( void );
+	const std::vector<unsigned char>	*getMap( void ) const;
+	void						setWeight( const int& metric, const int& searchType, const Board& solution );	// initial distance setup
+	void						setHash( void );
+	void						setChildren( const int& metric, const int& searchType, const Board& solution );
+
 };
 
 extern		std::ostream& operator<<( std::ostream& os, const Board& board );
