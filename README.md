@@ -1,10 +1,11 @@
 # n-puzzle
 
-An Algo Project at Codam (42) - Sliding puzzle
+An Algo Project at Codam (42) - Sliding puzzle with A* algorithm
 
 Solve sliding puzzle of an arbitrary size using A* algorithm. This project supports sizes 3x3 to 16x16, however execution time for puzzles bigger than 5x5 may raise dramatically.
 
 [SUBJECT](/NPUZZLE_SUBJECT.pdf)
+[REQUIREMENTS](https://github.com/k-off/n-puzzle/wiki)
 
 ### Implemented metrics:
  - Manhattan distance: `dx + dy`
