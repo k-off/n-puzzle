@@ -40,19 +40,18 @@ Npuzzle::Npuzzle( void )
 		cout << endl << "Enter length of board's side (3<=x<=16): ";
 		size = int( getUnsigned(cin) );
 	}
-	solution_ = Board( size );
-	solution_.generateCorrect();
-	solution_.setHash();
+	solutionBoard_ = Board( size );
+	solutionBoard_.generateCorrect();
 	cout << "Generating random board of size " << size << endl;
-	initial_ = Board( size );
-	initial_.generateRandom();
-	cout << "Initial board:\n" << initial_;
-	maxOpen_ = 0;
-	maxCost_ = 0;
+	initialBoard_ = Board( size );
+	initialBoard_.generateRandom();
+	cout << "Initial board:\n" << initialBoard_;
+	maxOpenStates_ = 0;
+	iterationCounter_ = 0;
 	setMetricId();
 	setSearchType();
-	initial_.setHash();
-	initial_.setWeight(metricId_, searchType_, solution_);
+	initialBoard_.setWeight(metricId_, searchTypeID_, solutionBoard_);
+	initialBoard_.setHash();
 }
 
 Npuzzle::Npuzzle( std::istream& infile ) {
@@ -65,18 +64,17 @@ Npuzzle::Npuzzle( std::istream& infile ) {
 	}
 	size = getUnsigned( infile );
 	cout << size << endl;
-	solution_ = Board( size );
-	solution_.generateCorrect();
-	solution_.setHash();
-	initial_ = Board( size );
-	infile >> initial_;
-	cout << initial_;
-	maxOpen_ = 0;
-	maxCost_ = 0;
+	solutionBoard_ = Board( size );
+	solutionBoard_.generateCorrect();
+	initialBoard_ = Board( size );
+	infile >> initialBoard_;
+	cout << initialBoard_;
+	maxOpenStates_ = 0;
+	iterationCounter_ = 0;
 	setMetricId();
 	setSearchType();
-	initial_.setHash();
-	initial_.setWeight(metricId_, searchType_, solution_);
+	initialBoard_.setWeight(metricId_, searchTypeID_, solutionBoard_);
+	initialBoard_.setHash();
 }
 
 void	Npuzzle::setMetricId( void ) {
@@ -99,40 +97,38 @@ void	Npuzzle::setSearchType( void ) {
 	cout << "\t0 - Standard     : f(g)+f(h)" << endl;
 	cout << "\t1 - Greedy       : f(g)" << endl;
 	cout << "\t2 - Cost-uniform : f(h)" << endl;
-	searchType_ = -1;
-	while ( searchType_ < 0 || searchType_ > 2 ) {
+	searchTypeID_ = -1;
+	while ( searchTypeID_ < 0 || searchTypeID_ > 2 ) {
 		cout << "\nType search id (0 or 1 or 2): ";
-		searchType_ = int( getUnsigned(cin) );
+		searchTypeID_ = int( getUnsigned(cin) );
 	}
-	cout << names[metricId_] << " search type selected" << endl;
+	cout << names[searchTypeID_] << " search type selected" << endl;
 }
 
 bool	Npuzzle::solve( void ) {
-	openStates_.insert( {initial_.getWeight(), &initial_} );
-	allHashes_.insert( initial_.getHash() );
+	openStates_.insert( {initialBoard_.getWeight(), &initialBoard_} );
+	allHashes_.insert( initialBoard_.getHash() );
 	while ( openStates_.size() > 0 ) {
-		Board *current = openStates_.begin()->second;
-		if ( current->getHash() == solution_.getHash() ) {
+		auto first = openStates_.begin();
+		Board *current = first->second;
+		if ( current->getHash() == solutionBoard_.getHash() ) {
 			return ( print(current) );
 		} else {
-			current->setChildren(metricId_, searchType_, solution_);
-			vector<Board> *newChildren = current->getChildren();
-			if ( newChildren[0][0].getCost() > maxCost_ ) {
-				maxCost_ = newChildren[0][0].getCost();
-			}
-			for ( auto newChild : *newChildren ) {
-				if ( allHashes_.count(newChild.getHash()) == 0 ) {
-					allHashes_.insert(newChild.getHash());
-					openStates_.insert( {newChild.getWeight(), &newChild} );
+			current->setChildren( metricId_, searchTypeID_, solutionBoard_ );
+			for ( auto& child : current->getChildren() ) {
+				if ( allHashes_.count(child.getHash()) < 1 ) {
+					openStates_.insert( {child.getWeight(), &child} );
+					allHashes_.insert( child.getHash() );
 				}
 			}
-			openStates_.erase(openStates_.begin());
-			if ( (int)openStates_.size() > maxOpen_ ) {
-				maxOpen_ = (int)openStates_.size();
-			}
 		}
+		iterationCounter_++;
+		openStates_.erase(first);
+		if ((int)openStates_.size() > maxOpenStates_ )
+			maxOpenStates_ = (int)openStates_.size();
 	}
-	return ( false );
+	cout << "Not solvable" << endl;
+	return (false);
 }
 
 void 	recursivePrintSteps( const Board* solution, int& res ) {
@@ -147,7 +143,7 @@ bool	Npuzzle::print( Board* solution ) const {
 	int steps = 0;
 	recursivePrintSteps( solution, steps );
 	cout << "Solution steps  : " << steps << endl;
-	cout << "Time complexity : " << maxCost_ << endl;
-	cout << "Space complexity: " << maxOpen_ << endl;
+	cout << "Time complexity : " << iterationCounter_ << endl;
+	cout << "Space complexity: " << maxOpenStates_ << endl;
 	return ( true );
 }

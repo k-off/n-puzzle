@@ -14,19 +14,19 @@
 # include "Npuzzle.class.hpp"
 
 using namespace std;
-//
-int		main(int ac, char **av) {
-	if (ac > 2) {
+
+int		main(int argCount, char **argValues) {
+	if (argCount > 2) {
 		cout << "Usage: ./npuzzle [filename]" << endl;
 	}
-	if (ac == 2) {
-		ifstream infile;
+	if (argCount == 2) {
+		ifstream inputFileStream;
 		try {
-			infile.open(av[1], ios::in);
-			if (!infile || infile.fail())
+			inputFileStream.open(argValues[1], ios::in);
+			if (!inputFileStream || inputFileStream.fail())
 				throw runtime_error("File couldn't be open");
-			Npuzzle puzzle(infile);
-			infile.close();
+			Npuzzle puzzle(inputFileStream);
+			inputFileStream.close();
 			puzzle.solve();
 		}
 		catch ( const std::exception& e ) {

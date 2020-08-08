@@ -18,23 +18,23 @@
 
 class Npuzzle {
 private:
-	Board					initial_;		// initial board gotten from file or generated
-	Board					solution_;		// final solution generated at the beginning for comparison
-	std::map<float, Board*>	openStates_;	// metric value and pointer to state
-	std::set<uint64_t>		allHashes_;		// hash sums for all generated states
-	int						maxOpen_;		// stores peak size of openStates_, complexity in size
-	int						maxCost_;		// stores peak cost, complexity in time
-	int						metricId_;		// selected metric
-	int						searchType_;	// selected search type
+	Board								initialBoard_;
+	Board								solutionBoard_;
+	std::set<std::pair<float, Board*>>	openStates_;		// states in still in queue
+	std::set<uint64_t>					allHashes_;			// hash sums for all previously generated states
+	int									maxOpenStates_;		// stores peak amount of openStates_, complexity in size
+	int									iterationCounter_;	// stores peak cost, complexity in time
+	int									metricId_;			// selected metric
+	int									searchTypeID_;		// selected search type
 
 public:
 	Npuzzle( void );										// start game in random mode
 	Npuzzle( std::istream& infile );						// start game with input file
 
-	void					setMetricId( void );			// ask user to choose the metric
-	void					setSearchType( void );			// ask user to choose the search type
-	bool					solve( void );					// main solution loop
-	bool					print( Board *solution ) const;	// output result
+	void								setMetricId( void );
+	void								setSearchType( void );
+	bool								solve( void );
+	bool								print( Board *solution ) const;
 };
 
 #endif
