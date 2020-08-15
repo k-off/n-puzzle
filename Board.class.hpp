@@ -6,7 +6,7 @@
 /*   By: pacovali <pacovali@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2020/08/01 09:22:02 by pacovali      #+#    #+#                 */
-/*   Updated: 2020/08/01 09:22:36 by pacovali      ########   odam.nl         */
+/*   Updated: 2020/08/09 12:59:49 by pacovali      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -45,11 +45,6 @@ public:
 	Board( void );
 	Board( const unsigned char& size );
 	Board( const Board *rhs );
-
-	void	operator=( const Board& rhs );
-	bool	operator==( const Board& rhs ) const;								// compare hash, for main loop
-	bool	operator!=( const Board& rhs ) const;
-	bool	operator<( const Board& rhs ) const;								// compare weight, for sorting
 
 	void								generateCorrect( void );				// generate solution board
 	void								generateRandom( void );					// generate random initial board if no input file provided

@@ -6,7 +6,7 @@
 /*   By: pacovali <pacovali@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2020/08/01 09:21:41 by pacovali      #+#    #+#                 */
-/*   Updated: 2020/08/01 09:21:51 by pacovali      ########   odam.nl         */
+/*   Updated: 2020/08/09 15:48:33 by pacovali      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -59,41 +59,10 @@ Board::Board( const Board *rhs ) {
 
 /*
 ** *****************************************************************************
-** OPERATORS
-** *****************************************************************************
-*/
-
-void	Board::operator=( const Board& rhs ) {
-	sideLength_ = rhs.sideLength_;
-	board_ = rhs.board_;
-	heuristic_ = rhs.heuristic_;
-	cost_ = rhs.cost_;
-	weight_ = rhs.weight_;
-	parent_ = rhs.parent_;
-	zeroAddr_ = rhs.zeroAddr_;
-	hash_ = rhs.hash_;
-	children_ = {};
-}
-
-bool	Board::operator==( const Board& rhs ) const {
-	return ( hash_ == rhs.hash_ );
-}
-
-bool	Board::operator!=( const Board& rhs ) const {
-	return ( hash_ != rhs.hash_ );
-}
-
-bool	Board::operator<( const Board& rhs ) const {
-	return ( weight_ < rhs.weight_ );
-}
-
-/*
-** *****************************************************************************
 ** PUBLIC MEMBER FUNCTIONS
 ** *****************************************************************************
 */
 
-//helper function for correct generator
 static void	swap_values( int& first, int& second, int& iter ) {
 	int tmp;
 
@@ -197,7 +166,7 @@ void	Board::setZeroAddress( void ) {
 
 void	Board::setHash( void ) {
 	char			resultOffset = 0;
-	char			currentOffset = (sideLength_ < 9 ? 8 : 4);				// for boards 3*3 don't compress data as it fits 64bits
+	char			currentOffset = (sideLength_ < 9 ? 8 : 4);
 
 	hash_ = 0;
 	for ( uint64_t current : board_ ) {
@@ -214,7 +183,7 @@ void	Board::setHash( void ) {
 
 void	Board::setWeight( const int& metric, const int& searchType, const Board& solution ) {
 	if ( searchType == GREEDY || searchType == STANDARD ) {
-		for ( char i = 0; i < sideLength_ * sideLength_; i++ ) {
+		for ( int i = 0; i < sideLength_ * sideLength_; i++ ) {
 			address currentAddress( {char(i % sideLength_), char(i / sideLength_)} );
 			heuristic_ += updateHeurstic_(currentAddress, metric, solution);
 		}
@@ -291,7 +260,7 @@ void	Board::swapNodes_( const address& newZero, const int& metric, const int& se
 
 std::ostream& operator<<( std::ostream& stream, const Board& board ) {
 	vector<unsigned char> *out = (vector<unsigned char>*)board.getMap();
-	for (unsigned char i = 0; i < board.getSize() * board.getSize(); i++) {
+	for (int i = 0; i < board.getSize() * board.getSize(); i++) {
 		stream << setw(4) << int(out[0][i]) << ((i + 1) % board.getSize() ? " " : "\n");
 	}
 	return ( stream );
@@ -300,12 +269,12 @@ std::ostream& operator<<( std::ostream& stream, const Board& board ) {
 std::istream& operator>>( std::istream& stream, Board& board ) {
 	vector<unsigned char> *in = (vector<unsigned char>*)board.getMap();
 	set<unsigned char> check;
-	
-	for (unsigned char i = 0; i < board.getSize() * board.getSize(); i++) {
+
+	for (int i = 0; i < board.getSize() * board.getSize(); i++) {
 		short		tmp;
 		stream >> tmp;
 		if ( !stream || stream.fail() ) {
-			if ( (i + 1) % board.getSize() || stream.peek() != '#' ) {						// if non-digit in the middle of line
+			if ( (i + 1) % board.getSize() || stream.peek() != '#' ) {
 				throw std::runtime_error( "Non-digit found" );
 			} else {
 				stream.clear();
